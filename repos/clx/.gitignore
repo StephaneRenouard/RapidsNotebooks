@@ -1,0 +1,40 @@
+## Common
+*.pyc
+*.a
+*.o
+*.so
+*.dylib
+.cache
+.coverage
+.vscode
+*.swp
+.DS_Store
+
+# Python
+__pycache__/
+.pytest_cache/
+build/
+dist/
+clx.egg-info/
+python/clx/analytics/*.cpp
+
+## C++ build directories & artifacts
+CMakeFiles/
+Debug
+build/
+bin/
+
+# Dask
+dask-worker-space/
+
+# IDE
+.idea/
+*.iml
+
+# Test output
+clx/tests/output
+clx/tests/.config
+rnn_classifier_2020-06-08_20_48_03.pth
+
+# Jupyter
+.ipynb_checkpoints/

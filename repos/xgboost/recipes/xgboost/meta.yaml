@@ -1,0 +1,166 @@
+{% set name = "xgboost" %}
+{% set xgboost_version = environ.get('XGBOOST_VERSION', '1.6.2') + environ.get('VERSION_SUFFIX', '') %}
+{% set cuda_version='.'.join(environ.get('CUDA', '11.5').split('.')[:2]) %}
+{% set cuda_major=cuda_version.split('.')[0] %}
+{% set py_version=environ.get('CONDA_PY', '36') %}
+{% set xgboost_repo = environ.get('XGBOOST_REPO', 'dmlc/xgboost') %}
+{% set xgboost_branch = environ.get('XGBOOST_BRANCH', 'main') %}
+{% set build_number = environ.get('XGBOOST_BUILD_NUMBER', 1) %}
+{% set rapids_version = environ.get('RAPIDS_VER', '22.10') %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ xgboost_version }}
+
+source:
+  # we have to use git urls here to get the submodules needed for the
+  # build
+  git_url: https://github.com/{{ xgboost_repo }}
+  git_tag: {{ xgboost_branch }}
+  patches:
+    - xgboost_master.patch
+
+build:
+  number: 2
+  skip: true  # [win or linux32]
+  script_env:
+    - XGBOOST_VERSION
+    - XGBOOST_REPO
+    - XGBOOST_BRANCH
+    - XGBOOST_BUILD_NUMBER
+    - VERSION_SUFFIX
+    - CUDA
+    - RAPIDS_VER
+  ignore_run_exports_from:
+    - {{ compiler('cuda') }}
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
+    - {{ compiler('cuda') }} {{ cuda_version }}.*         # [xgboost_proc_type == "gpu"]
+    - git
+    - cmake
+    - make
+    - llvm-openmp >=4.0.1  # [osx]
+    - librmm {{ rapids_version }}
+  host:
+    - cudatoolkit {{ cuda_version }}
+    - nccl >=2.5             # [xgboost_proc_type == "gpu"]
+    - llvm-openmp >=4.0.1  # [osx]
+    - librmm {{ rapids_version }}
+
+
+outputs:
+  - name: xgboost-proc
+    version: 1.0.0
+    build:
+      number: 0
+      string: "{{ xgboost_proc_type }}"
+      ignore_run_exports_from:
+        - {{ compiler('cuda') }}
+    about:
+      home: https://github.com/conda-forge/xgboost-feedstock
+      license: BSD-3-Clause
+      license_family: BSD
+      summary: A meta-package to select CPU or GPU build.
+
+  - name: libxgboost
+    script: install-libxgboost.sh
+    build:
+      string: cuda_{{ cuda_major }}_{{ build_number }}
+      ignore_run_exports_from:
+        - {{ compiler('cuda') }}
+    requirements:
+      build:
+        - {{ compiler('c') }}
+        - {{ compiler('cxx') }}
+        - {{ compiler('cuda') }} {{ cuda_version }}.*         # [xgboost_proc_type == "gpu"]
+        - git
+        - cmake
+        - make
+        - llvm-openmp >=4.0.1  # [osx]
+      host:
+        - llvm-openmp >=4.0.1  # [osx]
+        - nccl >=2.5             # [xgboost_proc_type == "gpu"]
+        - librmm {{ rapids_version }}
+      run:
+        - llvm-openmp >=4.0.1  # [osx]
+        - nccl >=2.5             # [xgboost_proc_type == "gpu"]
+        - librmm {{ rapids_version }}
+        - {{ pin_compatible('cudatoolkit', max_pin='x', min_pin='x') }}
+      run_constrained:
+        - xgboost-proc * {{ xgboost_proc_type }}
+
+  - name: py-xgboost
+    script: install-py-xgboost.sh
+    build:
+      string: cuda_{{ cuda_major }}_py{{ py_version }}_{{ build_number }}
+      ignore_run_exports_from:
+        - {{ compiler('cuda') }}
+    requirements:
+      build:
+        - {{ compiler('c') }}
+        - {{ compiler('cxx') }}
+        - {{ compiler('cuda') }} {{ cuda_version }}.*         # [xgboost_proc_type == "gpu"]
+        - llvm-openmp >=4.0.1  # [osx]
+      host:
+        - {{ pin_subpackage('libxgboost', exact=True) }}
+        - python
+        - setuptools
+        - pip
+        - llvm-openmp >=4.0.1  # [osx]
+        - rmm {{ rapids_version }}
+      run:
+        - {{ pin_subpackage('libxgboost', exact=True) }}
+        - llvm-openmp >=4.0.1  # [osx]
+        - python
+        - numpy
+        - scipy
+        - scikit-learn
+        - pandas >=0.25
+        - rmm {{ rapids_version }}
+        - {{ pin_compatible('cudatoolkit', max_pin='x', min_pin='x') }}
+      run_constrained:
+        - xgboost-proc * {{ xgboost_proc_type }}
+    test:
+      script: test-py-xgboost.py
+      imports:
+        - xgboost
+
+  - name: xgboost
+    build:
+      string: cuda_{{ cuda_major }}_py{{ py_version }}_{{ build_number }}
+      ignore_run_exports_from:
+        - {{ compiler('cuda') }}
+    requirements:
+      host:
+        - python
+        - cudatoolkit {{ cuda_version }}
+        - nccl >=2.5             # [xgboost_proc_type == "gpu"]
+      run:
+        - python
+        - {{ pin_subpackage('py-xgboost', exact=True) }}
+        - {{ pin_compatible('cudatoolkit', max_pin='x', min_pin='x') }}
+
+about:
+  home: https://github.com/dmlc/xgboost
+  license: Apache-2.0
+  license_file: LICENSE
+  summary: |
+    Scalable, Portable and Distributed Gradient Boosting (GBDT, GBRT or GBM) Library, for
+    Python, R, Java, Scala, C++ and more. Runs on single machine, Hadoop, Spark, Flink
+    and DataFlow
+  description: |
+    XGBoost is an optimized distributed gradient boosting library designed to be highly efficient,
+    flexible and portable. It implements machine learning algorithms under the Gradient Boosting
+    framework. XGBoost provides a parallel tree boosting (also known as GBDT, GBM) that solve many
+    data science problems in a fast and accurate way. The same code runs on major distributed
+    environment (Hadoop, SGE, MPI) and can solve problems beyond billions of examples.
+  doc_url: https://xgboost.readthedocs.io/
+  dev_url: https://github.com/dmlc/xgboost/
+
+extra:
+  recipe-maintainers:
+    - beckermr
+    - aldanor
