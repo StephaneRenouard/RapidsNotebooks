@@ -1,9 +1,0 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION.
-
-[build-system]
-
-requires = [
-    "wheel",
-    "setuptools",
-    "cython>=0.29,<0.30",
-]
